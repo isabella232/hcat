@@ -1513,6 +1513,47 @@ func TestTemplate_Execute(t *testing.T) {
 			"1.2.3.45.6.7.8",
 			false,
 		},
+		{
+			"func_HCLValue_dep",
+			TemplateInput{
+				Contents:     `{{ range service "webapp" }}{{ HCLValue . }}{{ end }}`,
+				FuncMapMerge: map[string]interface{}{"HCLValue": HCLValueFunc},
+			},
+			func() *Store {
+				st := NewStore()
+				d, err := dep.NewHealthConnectQuery("webapp")
+				if err != nil {
+					t.Fatal(err)
+				}
+				st.Save(d.String(), []*dep.HealthService{
+					{
+						Node:    "node1",
+						Address: "1.2.3.4",
+						Tags:    []string{"tag1", "tag2"},
+						Checks: []dep.HealthCheck{{
+							Node:    "node1",
+							CheckID: "check_id",
+							Status:  "passing",
+						}},
+					},
+				})
+				return st
+			}(),
+			"1.2.3.45.6.7.8",
+			false,
+		},
+		{
+			"func_HCLValue",
+			TemplateInput{
+				Contents:     `{{ HCLValue "this is a string" }}{{ HCLValue 30.3 }}`,
+				FuncMapMerge: map[string]interface{}{"HCLValue": HCLValueFunc},
+			},
+			func() *Store {
+				return NewStore()
+			}(),
+			"\"this is a string\"30.3",
+			false,
+		},
 	}
 
 	//	struct {
@@ -1535,6 +1576,7 @@ func TestTemplate_Execute(t *testing.T) {
 				t.Fatal(err)
 			}
 			if a != nil && !bytes.Equal([]byte(tc.e), a.Output) {
+				t.Log(string(a.Output))
 				t.Errorf("\nexp: %#v\nact: %#v", tc.e, string(a.Output))
 			}
 		})

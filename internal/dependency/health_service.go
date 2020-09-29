@@ -36,25 +36,50 @@ func init() {
 	gob.Register([]*HealthService{})
 }
 
+type HCLStruct interface {
+	HCL()
+}
+
 // HealthService is a service entry in Consul.
 type HealthService struct {
-	Node                string
-	NodeID              string
-	NodeAddress         string
-	NodeDatacenter      string
-	NodeTaggedAddresses map[string]string
-	NodeMeta            map[string]string
-	ServiceMeta         map[string]string
-	Address             string
-	ID                  string
-	Name                string
-	Tags                ServiceTags
-	Checks              api.HealthChecks
-	Status              string
-	Port                int
+	Node                string            `hcl:"node"`
+	NodeID              string            `hcl:"node_id"`
+	NodeAddress         string            `hcl:"node_address"`
+	NodeDatacenter      string            `hcl:"node_datacenter"`
+	NodeTaggedAddresses map[string]string `hcl:"node_tagged_addresses"`
+	NodeMeta            map[string]string `hcl:"node_meta"`
+	ServiceMeta         map[string]string `hcl:"service_meta"`
+	Address             string            `hcl:"address"`
+	ID                  string            `hcl:"id"`
+	Name                string            `hcl:"name"`
+	Tags                ServiceTags       `hcl:"tags"`
+	Checks              []HealthCheck     `hcl:"check,block"`
+	Status              string            `hcl:"status"`
+	Port                int               `hcl:"port"`
 	Weights             api.AgentWeights
-	Namespace           string
+	Namespace           string `hcl:"namespace"`
 }
+
+func (h HealthService) HCL() {}
+
+type HealthCheck struct {
+	// Adding tags to api.HealthCheck could be done in consul
+	Node        string   `hcl:"node"`
+	CheckID     string   `hcl:"check_id"`
+	Name        string   `hcl:"name"`
+	Status      string   `hcl:"status"`
+	Notes       string   `hcl:"notes"`
+	Output      string   `hcl:"output"`
+	ServiceID   string   `hcl:"service_id"`
+	ServiceName string   `hcl:"service_name"`
+	ServiceTags []string `hcl:"service_tags"`
+	Type        string   `hcl:"type"`
+	Namespace   string   `json:",omitempty",hcl:"namespace"`
+
+	Definition api.HealthCheckDefinition // TODO tag this too
+}
+
+func (h HealthCheck) HCL() {}
 
 // HealthServiceQuery is the representation of all a service query in Consul.
 type HealthServiceQuery struct {
@@ -180,6 +205,25 @@ func (d *HealthServiceQuery) Fetch(clients dep.Clients) (interface{}, *dep.Respo
 			address = entry.Node.Address
 		}
 
+		// custom mapping to pick up tags
+		checks := make([]HealthCheck, len(entry.Checks))
+		for i, c := range entry.Checks {
+			checks[i] = HealthCheck{
+				Node:        c.Node,
+				CheckID:     c.CheckID,
+				Name:        c.Name,
+				Status:      c.Status,
+				Notes:       c.Notes,
+				Output:      c.Output,
+				ServiceID:   c.ServiceID,
+				ServiceName: c.ServiceName,
+				ServiceTags: c.ServiceTags,
+				Type:        c.Type,
+				Namespace:   c.Namespace,
+				Definition:  c.Definition,
+			}
+		}
+
 		list = append(list, &HealthService{
 			Node:                entry.Node.Node,
 			NodeID:              entry.Node.ID,
@@ -194,7 +238,7 @@ func (d *HealthServiceQuery) Fetch(clients dep.Clients) (interface{}, *dep.Respo
 			Tags: ServiceTags(
 				deepCopyAndSortTags(entry.Service.Tags)),
 			Status:    status,
-			Checks:    entry.Checks,
+			Checks:    checks,
 			Port:      entry.Service.Port,
 			Weights:   entry.Service.Weights,
 			Namespace: entry.Service.Namespace,

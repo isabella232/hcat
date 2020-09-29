@@ -24,7 +24,10 @@ import (
 	socktmpl "github.com/hashicorp/go-sockaddr/template"
 	"github.com/hashicorp/hcat/dep"
 	idep "github.com/hashicorp/hcat/internal/dependency"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/pkg/errors"
+	"github.com/zclconf/go-cty/cty"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -32,6 +35,55 @@ import (
 // that you want denied. For use with the FuncMapMerge.
 func DenyFunc(...interface{}) (string, error) {
 	return "", errors.New("function disabled")
+}
+
+func HCLValueFunc(v interface{}) (string, error) {
+	_, ok := v.(idep.HCLStruct)
+	if ok {
+		f := hclwrite.NewEmptyFile()
+		gohcl.EncodeIntoBody(v, f.Body())
+
+		var buf bytes.Buffer
+		f.WriteTo(&buf)
+		return buf.String(), nil
+	}
+
+	val := hclValue(v)
+	tokens := hclwrite.TokensForValue(val)
+	return string(tokens.Bytes()), nil
+}
+
+func hclValue(v interface{}) cty.Value {
+	if v == nil {
+		return cty.NullVal(cty.DynamicPseudoType)
+	}
+
+	switch tv := v.(type) {
+	case bool:
+		return cty.BoolVal(tv)
+	case string:
+		return cty.StringVal(tv)
+	case int:
+		return cty.NumberIntVal(int64(tv))
+	case float64:
+		return cty.NumberFloatVal(tv)
+	case []interface{}:
+		vals := make([]cty.Value, len(tv))
+		for i, ev := range tv {
+			vals[i] = hclValue(ev)
+		}
+		return cty.TupleVal(vals)
+	case map[string]interface{}:
+		vals := map[string]cty.Value{}
+		for k, ev := range tv {
+			vals[k] = hclValue(ev)
+		}
+		return cty.ObjectVal(vals)
+	default:
+		// HCL/HIL should never generate anything that isn't caught by
+		// the above, so if we get here something has gone very wrong.
+		panic(fmt.Errorf("can't convert %#v to cty.Value", v))
+	}
 }
 
 // now is function that represents the current time in UTC. This is here
