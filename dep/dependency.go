@@ -7,6 +7,10 @@ import (
 	vaultapi "github.com/hashicorp/vault/api"
 )
 
+// TemplateDependency is an interface for internal dependency types to be used
+// for template function parameters
+type TemplateDependency interface{}
+
 // Dependency is an interface for an external dependency to be monitored.
 type Dependency interface {
 	Fetch(Clients) (interface{}, *ResponseMetadata, error)

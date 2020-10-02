@@ -24,16 +24,16 @@ func init() {
 
 // KeyPair is a simple Key-Value pair
 type KeyPair struct {
-	Path  string
-	Key   string
-	Value string
+	Path  string `hcl:"path"`
+	Key   string `hcl:"key"`
+	Value string `hcl:"value"`
 
 	// Lesser-used, but still valuable keys from api.KV
-	CreateIndex uint64
-	ModifyIndex uint64
-	LockIndex   uint64
-	Flags       uint64
-	Session     string
+	CreateIndex uint64 `hcl:"create_index"`
+	ModifyIndex uint64 `hcl:"modify_index"`
+	LockIndex   uint64 `hcl:"lock_index"`
+	Flags       uint64 `hcl:"flags"`
+	Session     string `hcl:"session"`
 }
 
 // KVListQuery queries the KV store for a single key.

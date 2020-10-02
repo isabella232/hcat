@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,55 +36,6 @@ import (
 // that you want denied. For use with the FuncMapMerge.
 func DenyFunc(...interface{}) (string, error) {
 	return "", errors.New("function disabled")
-}
-
-func HCLValueFunc(v interface{}) (string, error) {
-	_, ok := v.(idep.HCLStruct)
-	if ok {
-		f := hclwrite.NewEmptyFile()
-		gohcl.EncodeIntoBody(v, f.Body())
-
-		var buf bytes.Buffer
-		f.WriteTo(&buf)
-		return buf.String(), nil
-	}
-
-	val := hclValue(v)
-	tokens := hclwrite.TokensForValue(val)
-	return string(tokens.Bytes()), nil
-}
-
-func hclValue(v interface{}) cty.Value {
-	if v == nil {
-		return cty.NullVal(cty.DynamicPseudoType)
-	}
-
-	switch tv := v.(type) {
-	case bool:
-		return cty.BoolVal(tv)
-	case string:
-		return cty.StringVal(tv)
-	case int:
-		return cty.NumberIntVal(int64(tv))
-	case float64:
-		return cty.NumberFloatVal(tv)
-	case []interface{}:
-		vals := make([]cty.Value, len(tv))
-		for i, ev := range tv {
-			vals[i] = hclValue(ev)
-		}
-		return cty.TupleVal(vals)
-	case map[string]interface{}:
-		vals := map[string]cty.Value{}
-		for k, ev := range tv {
-			vals[k] = hclValue(ev)
-		}
-		return cty.ObjectVal(vals)
-	default:
-		// HCL/HIL should never generate anything that isn't caught by
-		// the above, so if we get here something has gone very wrong.
-		panic(fmt.Errorf("can't convert %#v to cty.Value", v))
-	}
 }
 
 // now is function that represents the current time in UTC. This is here
@@ -1164,6 +1116,211 @@ func timestamp(s ...string) (string, error) {
 func toLower(s string) (string, error) {
 	return strings.ToLower(s), nil
 }
+
+func toHCL(v interface{}) (string, error) {
+	// val := reflect.ValueOf(v)
+	// kind := val.Kind().String()
+	// f := hclwrite.NewEmptyFile()
+
+	// switch kind {
+	// case "ptr", "struct":
+	// 	return hclMarshal(v), nil
+
+	// case "array", "slice":
+	// 	if val.Type().Elem().Kind().String() == "struct" {
+	// 		return hclMarshal(v), nil
+	// 	}
+
+	// 	// Convert collection types to a collection of interface
+	// 	collection := make([]interface{}, val.Len())
+	// 	for i := 0; i < len(collection); i++ {
+	// 		collection[i] = val.Index(i).Interface()
+	// 	}
+	// 	v = collection
+
+	// case "map":
+	// 	collection := make(map[string]interface{})
+	// 	for _, k := range val.MapKeys() {
+	// 		collection[k.String()] = val.MapIndex(k).Interface()
+	// 	}
+	// 	v = collection
+	// }
+
+	// hclVal, err := hclValue(v)
+	f := hclwrite.NewEmptyFile()
+
+	v = interfaceCollection(v)
+	ok := hclBlocks(v, f.Body())
+	if ok {
+		s := string(f.Bytes())
+		log.Println(s)
+		return s, nil
+	}
+
+	val := hclValue(v)
+	tokens := hclwrite.TokensForValue(val)
+	return string(tokens.Bytes()), nil
+}
+
+// hclMarshal attempts to marshal a struct or collection of structs to HCL
+// values from hcl tags. This will panic on missing or invalid tags.
+// func hclMarshal(v interface{}, f *hclwrite.File) string {
+// 	gohcl.EncodeIntoBody(v, f.Body())
+
+// 	var buf bytes.Buffer
+// 	f.WriteTo(&buf)
+// 	return buf.String()
+// }
+
+// hclBasicValue converts a golang basic type into a cty.Value that represents the
+// HCL value.
+func hclBasicValue(v interface{}) cty.Value {
+	if v == nil {
+		return cty.NullVal(cty.DynamicPseudoType)
+	}
+
+	switch tv := v.(type) {
+	case bool:
+		return cty.BoolVal(tv)
+	case string:
+		return cty.StringVal(tv)
+	case int:
+		return cty.NumberIntVal(int64(tv))
+	case float64:
+		return cty.NumberFloatVal(tv)
+	default:
+		// If the value is not caught by the above, this means our type checking
+		// for structs and collection types were not properly evaluated to avoid
+		// this case.
+		panic(fmt.Errorf("can't convert %#v to cty.Value", v))
+	}
+}
+
+func hclValue(v interface{}) cty.Value {
+	switch tv := v.(type) {
+	case []interface{}:
+		vals := make([]cty.Value, len(tv))
+		for i, ev := range tv {
+			vals[i] = hclBasicValue(ev)
+		}
+		return cty.TupleVal(vals)
+
+	case map[string]interface{}:
+		vals := map[string]cty.Value{}
+		for k, ev := range tv {
+			vals[k] = hclBasicValue(ev)
+		}
+		return cty.ObjectVal(vals)
+	default:
+		return hclBasicValue(v)
+	}
+}
+
+func hclBlocks(v interface{}, body *hclwrite.Body) bool {
+	rv := reflect.ValueOf(v)
+	kind := rv.Kind().String()
+
+	switch tv := v.(type) {
+	case []interface{}:
+		elementKind := rv.Type().Elem().Kind().String()
+		if elementKind == "struct" {
+			for _, ev := range tv {
+				gohcl.EncodeIntoBody(ev, body)
+			}
+			return true
+		}
+
+	case map[string]interface{}:
+		elementKind := rv.Type().Elem().Kind().String()
+		if elementKind == "struct" {
+			for k, ev := range tv {
+				block := gohcl.EncodeAsBlock(ev, k)
+				body.AppendBlock(block)
+			}
+			return true
+		}
+
+	default:
+		if kind == "struct" {
+			gohcl.EncodeIntoBody(v, body)
+			return true
+		}
+	}
+
+	return false
+}
+
+func interfaceCollection(v interface{}) interface{} {
+	val := reflect.ValueOf(v)
+	kind := val.Kind().String()
+
+	// Dereference value if needed
+	if kind == "ptr" {
+		val = val.Elem()
+		v = val.Interface()
+		kind = val.Kind().String()
+	}
+
+	switch kind {
+	case "array", "slice":
+		// Convert collection types to a collection of interface
+		collection := make([]interface{}, val.Len())
+		for i := 0; i < len(collection); i++ {
+			collection[i] = val.Index(i).Interface()
+		}
+		return collection
+
+	case "map":
+		collection := make(map[string]interface{})
+		for _, k := range val.MapKeys() {
+			collection[k.String()] = val.MapIndex(k).Interface()
+		}
+		return collection
+	}
+
+	return v
+}
+
+// func hclValue(v interface{}) (cty.Value, error) {
+// 	if v == nil {
+// 		return cty.NullVal(cty.DynamicPseudoType), nil
+// 	}
+
+// 	var err error
+// 	switch tv := v.(type) {
+// 	case bool:
+// 		return cty.BoolVal(tv), nil
+// 	case string:
+// 		return cty.StringVal(tv), nil
+// 	case int:
+// 		return cty.NumberIntVal(int64(tv)), nil
+// 	case float64:
+// 		return cty.NumberFloatVal(tv), nil
+// 	case []interface{}:
+// 		vals := make([]cty.Value, len(tv))
+// 		for i, ev := range tv {
+// 			vals[i], err = hclValue(ev)
+// 			if err != nil {
+// 				return cty.Value{}, nil
+// 			}
+// 		}
+// 		return cty.TupleVal(vals), nil
+// 	case map[string]interface{}:
+// 		vals := map[string]cty.Value{}
+// 		for k, ev := range tv {
+// 			vals[k], err = hclValue(ev)
+// 			if err != nil {
+// 				return cty.Value{}, nil
+// 			}
+// 		}
+// 		return cty.ObjectVal(vals), nil
+// 	default:
+// 		// If the value is not caught by the above, this means our type checking
+// 		// for structs and collection types were not properly evaluated to avoid
+// 		// this case.
+// 		return cty.Value{}, fmt.Errorf("can't convert %#v to cty.Value", v)
+// 	}
+// }
 
 // toJSON converts the given structure into a deeply nested JSON string.
 func toJSON(i interface{}) (string, error) {

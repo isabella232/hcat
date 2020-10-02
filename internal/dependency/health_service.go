@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/hcat/dep"
 	"github.com/pkg/errors"
 )
@@ -36,10 +35,6 @@ func init() {
 	gob.Register([]*HealthService{})
 }
 
-type HCLStruct interface {
-	HCL()
-}
-
 // HealthService is a service entry in Consul.
 type HealthService struct {
 	Node                string            `hcl:"node"`
@@ -56,14 +51,12 @@ type HealthService struct {
 	Checks              []HealthCheck     `hcl:"check,block"`
 	Status              string            `hcl:"status"`
 	Port                int               `hcl:"port"`
-	Weights             api.AgentWeights
-	Namespace           string `hcl:"namespace"`
+	Weights             AgentWeights      `hcl:"weights,block"`
+	Namespace           string            `hcl:"namespace"`
 }
 
-func (h HealthService) HCL() {}
-
+// HealthCheck is used to represent a single check
 type HealthCheck struct {
-	// Adding tags to api.HealthCheck could be done in consul
 	Node        string   `hcl:"node"`
 	CheckID     string   `hcl:"check_id"`
 	Name        string   `hcl:"name"`
@@ -74,12 +67,14 @@ type HealthCheck struct {
 	ServiceName string   `hcl:"service_name"`
 	ServiceTags []string `hcl:"service_tags"`
 	Type        string   `hcl:"type"`
-	Namespace   string   `json:",omitempty",hcl:"namespace"`
-
-	Definition api.HealthCheckDefinition // TODO tag this too
+	Namespace   string   `hcl:"namespace"`
 }
 
-func (h HealthCheck) HCL() {}
+// AgentWeights represent optional weights for a service
+type AgentWeights struct {
+	Passing int `hcl:"passing"`
+	Warning int `hcl:"warning"`
+}
 
 // HealthServiceQuery is the representation of all a service query in Consul.
 type HealthServiceQuery struct {
@@ -220,7 +215,6 @@ func (d *HealthServiceQuery) Fetch(clients dep.Clients) (interface{}, *dep.Respo
 				ServiceTags: c.ServiceTags,
 				Type:        c.Type,
 				Namespace:   c.Namespace,
-				Definition:  c.Definition,
 			}
 		}
 
@@ -237,10 +231,13 @@ func (d *HealthServiceQuery) Fetch(clients dep.Clients) (interface{}, *dep.Respo
 			Name:                entry.Service.Service,
 			Tags: ServiceTags(
 				deepCopyAndSortTags(entry.Service.Tags)),
-			Status:    status,
-			Checks:    checks,
-			Port:      entry.Service.Port,
-			Weights:   entry.Service.Weights,
+			Status: status,
+			Checks: checks,
+			Port:   entry.Service.Port,
+			Weights: AgentWeights{
+				Passing: entry.Service.Weights.Passing,
+				Warning: entry.Service.Weights.Warning,
+			},
 			Namespace: entry.Service.Namespace,
 		})
 	}

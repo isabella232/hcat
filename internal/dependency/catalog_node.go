@@ -35,19 +35,19 @@ type CatalogNodeQuery struct {
 
 // CatalogNode is a wrapper around the node and its services.
 type CatalogNode struct {
-	Node     *Node
-	Services []*CatalogNodeService
+	Node     *Node                 `hcl:"node,block"`
+	Services []*CatalogNodeService `hcl:"service,block"`
 }
 
 // CatalogNodeService is a service on a single node.
 type CatalogNodeService struct {
-	ID                string
-	Service           string
-	Tags              ServiceTags
-	Meta              map[string]string
-	Port              int
-	Address           string
-	EnableTagOverride bool
+	ID                string            `hcl:"id"`
+	Service           string            `hcl:"service"`
+	Tags              ServiceTags       `hcl:"tags"`
+	Meta              map[string]string `hcl:"meta"`
+	Port              int               `hcl:"port"`
+	Address           string            `hcl:"address"`
+	EnableTagOverride bool              `hcl:"enable_tag_override"`
 }
 
 // NewCatalogNodeQuery parses the given string into a dependency. If the name is

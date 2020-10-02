@@ -1323,6 +1323,32 @@ func TestTemplate_Execute(t *testing.T) {
 			false,
 		},
 		{
+			"helper_toJSON_complex",
+			TemplateInput{
+				Contents: `{{ service "webapp" | toJSON }}`,
+			},
+			func() *Store {
+				st := NewStore()
+				d, err := dep.NewHealthServiceQuery("webapp")
+				if err != nil {
+					t.Fatal(err)
+				}
+				st.Save(d.String(), []*dep.HealthService{
+					{
+						Node:    "node1",
+						Address: "1.2.3.4",
+					},
+					{
+						Node:    "node2",
+						Address: "5.6.7.8",
+					},
+				})
+				return st
+			}(),
+			`[{"Node":"node1","NodeID":"","NodeAddress":"","NodeDatacenter":"","NodeTaggedAddresses":null,"NodeMeta":null,"ServiceMeta":null,"Address":"1.2.3.4","ID":"","Name":"","Tags":null,"Checks":null,"Status":"","Port":0,"Weights":{"Passing":0,"Warning":0},"Namespace":""},{"node":"node2","NodeID":"","NodeAddress":"","NodeDatacenter":"","NodeTaggedAddresses":null,"NodeMeta":null,"ServiceMeta":null,"Address":"5.6.7.8","ID":"","Name":"","Tags":null,"Checks":null,"Status":"","Port":0,"Weights":{"Passing":0,"Warning":0},"Namespace":""}]`,
+			false,
+		},
+		{
 			"helper_toLower",
 			TemplateInput{
 				Contents: `{{ "HI" | toLower }}`,
@@ -1516,8 +1542,7 @@ func TestTemplate_Execute(t *testing.T) {
 		{
 			"func_HCLValue_dep",
 			TemplateInput{
-				Contents:     `{{ range service "webapp" }}{{ HCLValue . }}{{ end }}`,
-				FuncMapMerge: map[string]interface{}{"HCLValue": HCLValueFunc},
+				Contents: `{{ range service "webapp" }}{{ toHCL . }}{{ end }}`,
 			},
 			func() *Store {
 				st := NewStore()
@@ -1545,8 +1570,7 @@ func TestTemplate_Execute(t *testing.T) {
 		{
 			"func_HCLValue",
 			TemplateInput{
-				Contents:     `{{ HCLValue "this is a string" }}{{ HCLValue 30.3 }}`,
-				FuncMapMerge: map[string]interface{}{"HCLValue": HCLValueFunc},
+				Contents: `{{ toHCL "this is a string" }}{{ toHCL 30.3 }}`,
 			},
 			func() *Store {
 				return NewStore()

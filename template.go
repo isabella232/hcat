@@ -247,6 +247,7 @@ func funcMap(i *funcMapInput) template.FuncMap {
 		"sha256Hex":       sha256Hex,
 		"timestamp":       timestamp,
 		"toLower":         toLower,
+		"toHCL":           toHCL,
 		"toJSON":          toJSON,
 		"toJSONPretty":    toJSONPretty,
 		"toTitle":         toTitle,
