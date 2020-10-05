@@ -48,7 +48,7 @@ type HealthService struct {
 	ID                  string            `hcl:"id"`
 	Name                string            `hcl:"name"`
 	Tags                ServiceTags       `hcl:"tags"`
-	Checks              []HealthCheck     `hcl:"check,block"`
+	Checks              []HealthCheck     `hcl:"health_check,block"`
 	Status              string            `hcl:"status"`
 	Port                int               `hcl:"port"`
 	Weights             AgentWeights      `hcl:"weights,block"`
