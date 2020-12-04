@@ -10,10 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	// "github.com/hashicorp/consul/api"
-	mockconsul "github.com/findkim/consul-mock-api"
 	"github.com/hashicorp/consul/sdk/testutil"
 	vapi "github.com/hashicorp/vault/api"
+	mockconsul "github.com/mkeeler/consul-mock-api"
 )
 
 const vaultAddr = "http://127.0.0.1:8200"

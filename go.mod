@@ -5,7 +5,6 @@ go 1.14
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/armon/go-metrics v0.3.3 // indirect
-	github.com/findkim/consul-mock-api v0.0.0-00010101000000-000000000000
 	github.com/frankban/quicktest v1.4.0 // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/hashicorp/consul/api v1.8.0
@@ -23,6 +22,7 @@ require (
 	github.com/mitchellh/gox v0.4.0 // indirect
 	github.com/mitchellh/iochan v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.3.0 // indirect
+	github.com/mkeeler/consul-mock-api v0.0.0-00010101000000-000000000000
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.6.1
@@ -34,4 +34,4 @@ require (
 	gopkg.in/yaml.v2 v2.2.8
 )
 
-replace github.com/findkim/consul-mock-api => ../hackathon/consul-mock-api
+replace github.com/mkeeler/consul-mock-api => ../consul-mock-api
