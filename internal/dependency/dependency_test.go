@@ -7,8 +7,10 @@ import (
 	"os/exec"
 	"reflect"
 	"runtime"
+	"sync"
 	"testing"
 
+	mockconsul "github.com/findkim/consul-mock-api"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
 	vapi "github.com/hashicorp/vault/api"
@@ -22,6 +24,17 @@ var testVault *vaultServer
 var testClients *ClientSet
 
 func TestMain(m *testing.M) {
+	tb := &TestingTB{}
+	mock := mockconsul.NewConsul(tb)
+	testClients = NewClientSet()
+	if err := testClients.CreateConsulClient(&CreateClientInput{
+		Address: mock.URL(),
+	}); err != nil {
+		Fatalf("failed to create consul client: %v\n", err)
+	}
+	os.Exit(m.Run())
+}
+func _TestMain(m *testing.M) {
 	//log.SetOutput(ioutil.Discard)
 	runTestVault()
 	runTestConsul()
@@ -104,7 +117,8 @@ func TestMain(m *testing.M) {
 }
 
 func runTestConsul() {
-	consul, err := testutil.NewTestServerConfig(
+	tb := &TestingTB{}
+	consul, err := testutil.NewTestServerConfigT(tb,
 		func(c *testutil.TestServerConfig) {
 			c.LogLevel = "warn"
 			c.Stdout = ioutil.Discard
@@ -218,3 +232,36 @@ func Fatalf(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 	runtime.Goexit()
 }
+
+// Meets consul/sdk/testutil/TestingTB interface
+var _ testutil.TestingTB = (*TestingTB)(nil)
+
+type TestingTB struct {
+	cleanup func()
+	sync.Mutex
+}
+
+func (t *TestingTB) DoCleanup() {
+	t.Lock()
+	defer t.Unlock()
+	t.cleanup()
+}
+
+func (*TestingTB) Failed() bool                { return false }
+func (*TestingTB) Logf(string, ...interface{}) {}
+func (*TestingTB) Name() string                { return "TestingTB" }
+func (t *TestingTB) Cleanup(f func()) {
+	t.Lock()
+	defer t.Unlock()
+	prev := t.cleanup
+	t.cleanup = func() {
+		f()
+		if prev != nil {
+			prev()
+		}
+	}
+}
+
+// mock's TestingT interface needs these as well
+func (*TestingTB) Errorf(string, ...interface{}) {}
+func (*TestingTB) FailNow()                      {}

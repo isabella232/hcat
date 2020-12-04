@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	mockconsul "github.com/findkim/consul-mock-api"
+	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -183,8 +185,16 @@ func TestNewKVGetQuery(t *testing.T) {
 func TestKVGetQuery_Fetch(t *testing.T) {
 	t.Parallel()
 
-	testConsul.SetKVString(t, "test-kv-get/key", "value")
-	testConsul.SetKVString(t, "test-kv-get/key_empty", "")
+	m := mockconsul.NewConsul(t)
+	_ = m
+
+	m.KVGet("test-kv-get/key", nil, 200, &api.KVPair{
+		Key:   "test-kv-get/key",
+		Value: []byte("value"),
+	})
+
+	//	testConsul.SetKVString(t, "test-kv-get/key", "value")
+	//	testConsul.SetKVString(t, "test-kv-get/key_empty", "")
 
 	cases := []struct {
 		name string
