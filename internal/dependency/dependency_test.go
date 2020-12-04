@@ -7,9 +7,11 @@ import (
 	"os/exec"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	// "github.com/hashicorp/consul/api"
+	mockconsul "github.com/findkim/consul-mock-api"
 	"github.com/hashicorp/consul/sdk/testutil"
 	vapi "github.com/hashicorp/vault/api"
 )
@@ -20,6 +22,24 @@ const vaultToken = "a_token"
 var testConsul *testutil.TestServer
 var testVault *vaultServer
 var testClients *ClientSet
+
+func newMockConsul(t *testing.T) (*mockconsul.Consul, *ClientSet) {
+	m := mockconsul.NewConsul(t)
+	m.SetFilteredHeaders([]string{
+		"Accept-Encoding",
+		"User-Agent",
+	})
+	addr := strings.TrimPrefix(m.URL(), "http://")
+	m.StatusLeader(200, addr)
+
+	clients := NewClientSet()
+	if err := clients.CreateConsulClient(&CreateClientInput{
+		Address: addr,
+	}); err != nil {
+		Fatalf("failed to create consul client: %v\n", err)
+	}
+	return m, clients
+}
 
 func TestMain(m *testing.M) {
 	//log.SetOutput(ioutil.Discard)

@@ -3,11 +3,9 @@ package dependency
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
-	mockconsul "github.com/findkim/consul-mock-api"
 	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 )
@@ -186,13 +184,9 @@ func TestNewKVGetQuery(t *testing.T) {
 func TestKVGetQuery_Fetch(t *testing.T) {
 	t.Parallel()
 
-	m := mockconsul.NewConsul(t)
-	m.SetFilteredHeaders([]string{
-		"Accept-Encoding",
-		"User-Agent",
-	})
-	addr := strings.TrimPrefix(m.URL(), "http://")
-	m.StatusLeader(200, addr)
+	m, clients := newMockConsul(t)
+	defer m.Close()
+
 	m.KVGet("test-kv-get/key", nil, 200, &api.KVPairs{{
 		Key:   "test-kv-get/key",
 		Value: []byte("value"),
@@ -202,13 +196,6 @@ func TestKVGetQuery_Fetch(t *testing.T) {
 		Value: []byte(""),
 	}})
 	m.KVGet("test-kv-get/not/a/real/key/like/ever", nil, 404, nil)
-
-	clients := NewClientSet()
-	if err := clients.CreateConsulClient(&CreateClientInput{
-		Address: addr,
-	}); err != nil {
-		Fatalf("failed to create consul client: %v\n", err)
-	}
 
 	cases := []struct {
 		name string

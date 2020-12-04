@@ -147,9 +147,14 @@ func TestNewKVKeysQuery(t *testing.T) {
 func TestKVKeysQuery_Fetch(t *testing.T) {
 	t.Parallel()
 
-	testConsul.SetKVString(t, "test-kv-keys/prefix/foo", "bar")
-	testConsul.SetKVString(t, "test-kv-keys/prefix/zip", "zap")
-	testConsul.SetKVString(t, "test-kv-keys/prefix/wave/ocean", "sleek")
+	m, clients := newMockConsul(t)
+	defer m.Close()
+
+	expectedKeys := []string{"foo", "wave/ocean", "zip"}
+	queryParam := map[string]string{"keys": ""}
+	m.KVKeys("test-kv-keys/prefix", queryParam, 200, expectedKeys)
+	m.KVKeys("test-kv-keys/prefix/", queryParam, 200, expectedKeys)
+	m.KVKeys("test-kv-keys/not/a/real/prefix/like/ever", queryParam, 200, []string{})
 
 	cases := []struct {
 		name string
@@ -180,7 +185,7 @@ func TestKVKeysQuery_Fetch(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			act, _, err := d.Fetch(testClients)
+			act, _, err := d.Fetch(clients)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -199,7 +204,7 @@ func TestKVKeysQuery_Fetch(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
 			for {
-				data, _, err := d.Fetch(testClients)
+				data, _, err := d.Fetch(clients)
 				if err != nil {
 					errCh <- err
 					return
@@ -232,17 +237,21 @@ func TestKVKeysQuery_Fetch(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, qm, err := d.Fetch(testClients)
+		_, qm, err := d.Fetch(clients)
 		if err != nil {
 			t.Fatal(err)
 		}
+		qm.LastIndex = 10
+		queryParams := map[string]string{"keys": "", "index": "10"}
+		exp := []string{"foo", "wave/ocean", "zebra", "zip"}
+		m.KVKeys("test-kv-keys/prefix/", queryParams, 200, exp)
 
 		dataCh := make(chan interface{}, 1)
 		errCh := make(chan error, 1)
 		go func() {
 			for {
 				d.SetOptions(QueryOptions{WaitIndex: qm.LastIndex})
-				data, _, err := d.Fetch(testClients)
+				data, _, err := d.Fetch(clients)
 				if err != nil {
 					errCh <- err
 					return
@@ -252,13 +261,10 @@ func TestKVKeysQuery_Fetch(t *testing.T) {
 			}
 		}()
 
-		testConsul.SetKVString(t, "test-kv-keys/prefix/zebra", "value")
-
 		select {
 		case err := <-errCh:
 			t.Fatal(err)
 		case act := <-dataCh:
-			exp := []string{"foo", "wave/ocean", "zebra", "zip"}
 			assert.Equal(t, exp, act)
 		}
 	})

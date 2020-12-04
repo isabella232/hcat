@@ -23,10 +23,13 @@ func TestNewConnectLeafQuery(t *testing.T) {
 func TestConnectLeafQuery_Fetch(t *testing.T) {
 	t.Parallel()
 
+	m, clients := newMockConsul(t)
+	defer m.Close()
+
 	t.Run("empty-service", func(t *testing.T) {
 		d := NewConnectLeafQuery("")
 
-		_, _, err := d.Fetch(testClients)
+		_, _, err := d.Fetch(clients)
 		exp := "Unexpected response code: 500 (" +
 			"URI must be either service or agent)"
 		if errors.Cause(err).Error() != exp {
@@ -35,7 +38,7 @@ func TestConnectLeafQuery_Fetch(t *testing.T) {
 	})
 	t.Run("with-service", func(t *testing.T) {
 		d := NewConnectLeafQuery("foo")
-		raw, _, err := d.Fetch(testClients)
+		raw, _, err := d.Fetch(clients)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,13 +58,13 @@ func TestConnectLeafQuery_Fetch(t *testing.T) {
 	})
 	t.Run("double-check", func(t *testing.T) {
 		d1 := NewConnectLeafQuery("foo")
-		raw1, _, err := d1.Fetch(testClients)
+		raw1, _, err := d1.Fetch(clients)
 		if err != nil {
 			t.Fatal(err)
 		}
 		cert1 := raw1.(*api.LeafCert)
 		d2 := NewConnectLeafQuery("foo")
-		raw2, _, err := d2.Fetch(testClients)
+		raw2, _, err := d2.Fetch(clients)
 		if err != nil {
 			t.Fatal(err)
 		}

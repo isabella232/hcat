@@ -164,6 +164,10 @@ func TestNewHealthServiceQuery(t *testing.T) {
 
 func TestHealthConnectServiceQuery_Fetch(t *testing.T) {
 	t.Parallel()
+
+	m, clients := newMockConsul(t)
+	defer m.Close()
+
 	cases := []struct {
 		name string
 		in   string
@@ -195,6 +199,28 @@ func TestHealthConnectServiceQuery_Fetch(t *testing.T) {
 	}
 	for i, tc := range cases {
 		t.Run(fmt.Sprintf("%d_%s", i, tc.name), func(t *testing.T) {
+
+			services := make([]*api.ServiceEntry, len(tc.exp))
+			for i, s := range tc.exp {
+				services[i] = &api.ServiceEntry{
+					Node: &api.Node{
+						Address:    s.NodeAddress,
+						Datacenter: s.NodeDatacenter,
+						Meta:       s.NodeMeta,
+					},
+					Service: &api.AgentService{
+						ID:        s.ID,
+						Service:   s.Name,
+						Tags:      s.Tags,
+						Port:      s.Port,
+						Weights:   s.Weights,
+						Namespace: s.Namespace,
+					},
+					Checks: nil,
+				}
+			}
+			m.HealthConnect(tc.in, map[string]string{"passing": "1"}, 200, services)
+
 			d, err := NewHealthConnectQuery(tc.in)
 			if err != nil {
 				t.Fatal(err)
@@ -202,7 +228,7 @@ func TestHealthConnectServiceQuery_Fetch(t *testing.T) {
 			defer func() {
 				d.Stop()
 			}()
-			res, _, err := d.Fetch(testClients)
+			res, _, err := d.Fetch(clients)
 			if err != nil {
 				t.Fatal(err)
 			}
