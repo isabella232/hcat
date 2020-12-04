@@ -3,9 +3,12 @@ package dependency
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	mockconsul "github.com/findkim/consul-mock-api"
+	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -183,8 +186,29 @@ func TestNewKVGetQuery(t *testing.T) {
 func TestKVGetQuery_Fetch(t *testing.T) {
 	t.Parallel()
 
-	testConsul.SetKVString(t, "test-kv-get/key", "value")
-	testConsul.SetKVString(t, "test-kv-get/key_empty", "")
+	m := mockconsul.NewConsul(t)
+	m.SetFilteredHeaders([]string{
+		"Accept-Encoding",
+		"User-Agent",
+	})
+	addr := strings.TrimPrefix(m.URL(), "http://")
+	m.StatusLeader(200, addr)
+	m.KVGet("test-kv-get/key", nil, 200, &api.KVPairs{{
+		Key:   "test-kv-get/key",
+		Value: []byte("value"),
+	}})
+	m.KVGet("test-kv-get/key_empty", nil, 200, &api.KVPairs{{
+		Key:   "test-kv-get/key_empty",
+		Value: []byte(""),
+	}})
+	m.KVGet("test-kv-get/not/a/real/key/like/ever", nil, 404, nil)
+
+	clients := NewClientSet()
+	if err := clients.CreateConsulClient(&CreateClientInput{
+		Address: addr,
+	}); err != nil {
+		Fatalf("failed to create consul client: %v\n", err)
+	}
 
 	cases := []struct {
 		name string
@@ -215,7 +239,7 @@ func TestKVGetQuery_Fetch(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			act, _, err := d.Fetch(testClients)
+			act, _, err := d.Fetch(clients)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -234,7 +258,7 @@ func TestKVGetQuery_Fetch(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
 			for {
-				data, _, err := d.Fetch(testClients)
+				data, _, err := d.Fetch(clients)
 				if err != nil {
 					errCh <- err
 					return
@@ -267,17 +291,24 @@ func TestKVGetQuery_Fetch(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, qm, err := d.Fetch(testClients)
+		_, qm, err := d.Fetch(clients)
 		if err != nil {
 			t.Fatal(err)
 		}
+		qm.LastIndex = 10
+		queryParams := map[string]string{"index": "10"}
+
+		m.KVGet("test-kv-get/key", queryParams, 200, &api.KVPairs{{
+			Key:   "test-kv-get/key",
+			Value: []byte("new-value"),
+		}})
 
 		dataCh := make(chan interface{}, 1)
 		errCh := make(chan error, 1)
 		go func() {
 			for {
 				d.SetOptions(QueryOptions{WaitIndex: qm.LastIndex})
-				data, _, err := d.Fetch(testClients)
+				data, _, err := d.Fetch(clients)
 				if err != nil {
 					errCh <- err
 					return
@@ -287,13 +318,11 @@ func TestKVGetQuery_Fetch(t *testing.T) {
 			}
 		}()
 
-		testConsul.SetKVString(t, "test-kv-get/key", "new-value")
-
 		select {
 		case err := <-errCh:
 			t.Fatal(err)
 		case data := <-dataCh:
-			assert.Equal(t, data, "new-value")
+			assert.Equal(t, "new-value", data)
 		}
 	})
 }

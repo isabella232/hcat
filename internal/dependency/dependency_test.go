@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/hashicorp/consul/api"
+	// "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
 	vapi "github.com/hashicorp/vault/api"
 )
@@ -26,12 +26,12 @@ func TestMain(m *testing.M) {
 	runTestVault()
 	runTestConsul()
 	clients := NewClientSet()
-	if err := clients.CreateConsulClient(&CreateClientInput{
-		Address: testConsul.HTTPAddr,
-	}); err != nil {
-		testConsul.Stop()
-		Fatalf("failed to create consul client: %v\n", err)
-	}
+	// if err := clients.CreateConsulClient(&CreateClientInput{
+	// 	Address: testConsul.HTTPAddr,
+	// }); err != nil {
+	// 	testConsul.Stop()
+	// 	Fatalf("failed to create consul client: %v\n", err)
+	// }
 	if err := clients.CreateVaultClient(&CreateClientInput{
 		Address: vaultAddr,
 		Token:   vaultToken,
@@ -41,43 +41,43 @@ func TestMain(m *testing.M) {
 	}
 	testClients = clients
 
-	consul_agent := testClients.consul.client.Agent()
-	// service with meta data
-	serviceMetaService := &api.AgentServiceRegistration{
-		ID:   "service-meta",
-		Name: "service-meta",
-		Tags: []string{"tag1"},
-		Meta: map[string]string{
-			"meta1": "value1",
-		},
-	}
-	if err := consul_agent.ServiceRegister(serviceMetaService); err != nil {
-		Fatalf("%v", err)
-	}
-	// connect enabled service
-	testService := &api.AgentServiceRegistration{
-		Name:    "foo",
-		ID:      "foo",
-		Port:    12345,
-		Connect: &api.AgentServiceConnect{},
-	}
-	// this is based on what `consul connect proxy` command does at
-	// consul/command/connect/proxy/register.go (register method)
-	testConnect := &api.AgentServiceRegistration{
-		Kind: api.ServiceKindConnectProxy,
-		Name: "foo-sidecar-proxy",
-		ID:   "foo",
-		Port: 21999,
-		Proxy: &api.AgentServiceConnectProxyConfig{
-			DestinationServiceName: "foo"},
-	}
+	// consul_agent := testClients.consul.client.Agent()
+	// // service with meta data
+	// serviceMetaService := &api.AgentServiceRegistration{
+	// 	ID:   "service-meta",
+	// 	Name: "service-meta",
+	// 	Tags: []string{"tag1"},
+	// 	Meta: map[string]string{
+	// 		"meta1": "value1",
+	// 	},
+	// }
+	// if err := consul_agent.ServiceRegister(serviceMetaService); err != nil {
+	// 	Fatalf("%v", err)
+	// }
+	// // connect enabled service
+	// testService := &api.AgentServiceRegistration{
+	// 	Name:    "foo",
+	// 	ID:      "foo",
+	// 	Port:    12345,
+	// 	Connect: &api.AgentServiceConnect{},
+	// }
+	// // this is based on what `consul connect proxy` command does at
+	// // consul/command/connect/proxy/register.go (register method)
+	// testConnect := &api.AgentServiceRegistration{
+	// 	Kind: api.ServiceKindConnectProxy,
+	// 	Name: "foo-sidecar-proxy",
+	// 	ID:   "foo",
+	// 	Port: 21999,
+	// 	Proxy: &api.AgentServiceConnectProxyConfig{
+	// 		DestinationServiceName: "foo"},
+	// }
 
-	if err := consul_agent.ServiceRegister(testService); err != nil {
-		Fatalf("%v", err)
-	}
-	if err := consul_agent.ServiceRegister(testConnect); err != nil {
-		Fatalf("%v", err)
-	}
+	// if err := consul_agent.ServiceRegister(testService); err != nil {
+	// 	Fatalf("%v", err)
+	// }
+	// if err := consul_agent.ServiceRegister(testConnect); err != nil {
+	// 	Fatalf("%v", err)
+	// }
 
 	exitCh := make(chan int, 1)
 	func() {
@@ -86,7 +86,7 @@ func TestMain(m *testing.M) {
 			// stop it, the panic will cause the server to remain running in
 			// the background. Here we catch the panic and the re-raise it.
 			if r := recover(); r != nil {
-				testConsul.Stop()
+				// testConsul.Stop()
 				testVault.Stop()
 				panic(r)
 			}
@@ -97,23 +97,23 @@ func TestMain(m *testing.M) {
 
 	exit := <-exitCh
 
-	testConsul.Stop()
+	// testConsul.Stop()
 	testVault.Stop()
 	testClients.Stop()
 	os.Exit(exit)
 }
 
 func runTestConsul() {
-	consul, err := testutil.NewTestServerConfig(
-		func(c *testutil.TestServerConfig) {
-			c.LogLevel = "warn"
-			c.Stdout = ioutil.Discard
-			c.Stderr = ioutil.Discard
-		})
-	if err != nil {
-		Fatalf("failed to start consul server: %v", err)
-	}
-	testConsul = consul
+	// consul, err := testutil.NewTestServerConfig(
+	// 	func(c *testutil.TestServerConfig) {
+	// 		c.LogLevel = "warn"
+	// 		c.Stdout = ioutil.Discard
+	// 		c.Stderr = ioutil.Discard
+	// 	})
+	// if err != nil {
+	// 	Fatalf("failed to start consul server: %v", err)
+	// }
+	testConsul = nil //consul
 }
 
 type vaultServer struct {
